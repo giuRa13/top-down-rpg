@@ -1,0 +1,11 @@
+CompileFlags:
+  CompilationDatabase: build # Ask clangd to load compilation flags from the CMake build directory
+  
+Add:
+  - -std=c++17
+  - -I${workspaceFolder}/src
+  - -I${workspaceFolder}/raylib/src
+  - -Wall
+  - -Wextra
+  - -DRESOURCES_PATH="${workspaceFolder}/resources/"
+
