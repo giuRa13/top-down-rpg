@@ -1,5 +1,6 @@
 #pragma once
 #include "entity.h"
+#include "entity_registry.h"
 #include "map.h"
 #include "player.h"
 #include "raylib.h"
@@ -7,9 +8,6 @@
 #include <imgui.h>
 #include <memory>
 #include <rlImgui.h>
-#include <string>
-#include <unordered_map>
-#include <vector>
 
 constexpr int SCREEN_WIDTH = 1280;
 constexpr int SCREEN_HEIGHT = 720;
@@ -28,6 +26,7 @@ enum class eState {
     Editor
 } inline state
     = eState::Game;
+
 inline bool debugMode = false;
 
 struct GameViewport {
@@ -40,11 +39,12 @@ class Game {
 public:
     Map map;
     Player player;
-    std::vector<std::unique_ptr<Entity>> entities;
-    std::unordered_map<std::string, Entity*> entity_map;
+    Entity* selected_entity = nullptr;
+    EntityRegistry entity_registry;
 
     Camera2D camera;
     Camera2D editor_camera;
+    bool free_cam = false;
 
     RenderTexture2D gameView;
     float viewportOffsetX = 0.0f;
@@ -60,25 +60,10 @@ public:
     void update(float delta);
     void draw();
     bool can_move_to(const Rectangle& nextHitbox);
+    void handle_entity_selection();
 
     void draw_overlay();
     void draw_entity_panel();
     void draw_ui();
     void draw_mouse_highlight();
-
-    template <typename T, typename... Args>
-    T* spawn_entity(const std::string& name, Args&&... args)
-    {
-        auto e = std::make_unique<T>(name, std::forward<Args>(args)...);
-        T* ptr = e.get();
-        entity_map[name] = ptr;
-        entities.push_back(std::move(e));
-        return ptr;
-    }
-
-    Entity* get_entity(const std::string& name)
-    {
-        auto it = entity_map.find(name);
-        return (it != entity_map.end()) ? it->second : nullptr;
-    }
 };

@@ -10,7 +10,7 @@ public:
     Tile& getTile(int x, int y, eZone zone);
 
     void draw_tile(int pos_x, int pos_y, int texture_index_x, int texture_index_y);
-    void draw_grid(int w, int h, int tile_w, int tile_h, Color color);
+    void draw_grid(int w, int h, int tile_w, int tile_h, float line, Color color);
     void draw_tilemap();
 
 private:

@@ -8,30 +8,30 @@
 Game::Game()
     : player(3, 3, eZone::WORLD)
 {
-    spawn_entity<Entity>("chest", 6, 3, eZone::ALL);
-    entity_map["chest"]->is_passable = false;
-    entity_map["chest"]->health = 100;
-    entity_map["chest"]->points = 100;
+    auto chest = entity_registry.spawn<Entity>("chest", 6, 3, eZone::ALL);
+    chest->is_passable = false;
+    chest->health = 100;
+    chest->points = 100;
 
-    spawn_entity<Entity>("gate", 7, 7, eZone::ALL);
+    entity_registry.spawn<Entity>("gate", 7, 7, eZone::ALL);
 
-    spawn_entity<Entity>("skull", 18, 7, eZone::DUNGEON);
-    entity_map["skull"]->is_passable = false;
+    auto skull = entity_registry.spawn<Entity>("skull", 18, 7, eZone::DUNGEON);
+    skull->is_passable = false;
 
-    spawn_entity<Entity>("explosion_f", 9, 2, eZone::ALL);
-    entity_map["explosion_f"]->hasAnimation = true;
+    auto explosion_f = entity_registry.spawn<Entity>("explosion_f", 9, 2, eZone::ALL);
+    explosion_f->hasAnimation = true;
 
-    spawn_entity<Entity>("explosion_d", 11, 10, eZone::ALL, 2.0f);
-    entity_map["explosion_d"]->hasAnimation = true;
+    auto explosion_d = entity_registry.spawn<Entity>("explosion_d", 11, 10, eZone::ALL);
+    explosion_d->hasAnimation = true;
 
-    spawn_entity<Entity>("trap1", 12, 5, eZone::WORLD);
-    entity_map["trap1"]->hasAnimation = true;
+    auto trap1 = entity_registry.spawn<Entity>("trap1", 12, 5, eZone::WORLD);
+    trap1->hasAnimation = true;
 
-    spawn_entity<Entity>("trap2", 13, 5, eZone::WORLD);
-    entity_map["trap2"]->hasAnimation = true;
+    auto trap2 = entity_registry.spawn<Entity>("trap2", 13, 5, eZone::WORLD);
+    trap2->hasAnimation = true;
 
-    spawn_entity<Entity>("trap3", 14, 5, eZone::WORLD);
-    entity_map["trap3"]->hasAnimation = true;
+    auto trap3 = entity_registry.spawn<Entity>("trap3", 14, 5, eZone::WORLD);
+    trap3->hasAnimation = true;
 
     init_camera();
 }
@@ -49,21 +49,21 @@ void Game::game_startup()
 
     Image explosion_fImage = LoadImage(RESOURCES_PATH "explosion_1f.png");
     Texture2D explosion_fTex = LoadTextureFromImage(explosion_fImage);
-    auto explosion_f = get_entity("explosion_f");
+    auto explosion_f = entity_registry.get("explosion_f");
     explosion_f->baseAnim.init(explosion_fTex, 1, 8, 48, 0.15f, 1, true);
     UnloadImage(explosion_fImage);
 
     Image explosion_dImage = LoadImage(RESOURCES_PATH "explosion_1d.png");
     Texture2D explosion_dTex = LoadTextureFromImage(explosion_dImage);
-    auto explosion_d = get_entity("explosion_d");
+    auto explosion_d = entity_registry.get("explosion_d");
     explosion_d->baseAnim.init(explosion_dTex, 1, 12, 128, 0.15f, 1, true);
     UnloadImage(explosion_dImage);
 
     Image trapImage = LoadImage(RESOURCES_PATH "trap.png");
     Texture2D trapTex = LoadTextureFromImage(trapImage);
-    auto trap_1 = get_entity("trap1");
-    auto trap_2 = get_entity("trap2");
-    auto trap_3 = get_entity("trap3");
+    auto trap_1 = entity_registry.get("trap1");
+    auto trap_2 = entity_registry.get("trap2");
+    auto trap_3 = entity_registry.get("trap3");
     trap_1->baseAnim.init(trapTex, 1, 8, 16, 0.15f, 1, true);
     trap_2->baseAnim.init(trapTex, 1, 8, 16, 0.15f, 1, true);
     trap_3->baseAnim.init(trapTex, 1, 8, 16, 0.15f, 1, true);
@@ -99,30 +99,58 @@ void Game::update(float delta)
     if (IsKeyPressed(KEY_R))
         debugMode = !debugMode;
 
+    if (IsKeyPressed(KEY_F))
+        free_cam = !free_cam;
+
     if (state == eState::Game) {
 
         player.update(delta, *this);
 
-        for (auto& e : entities)
+        for (auto& e : entity_registry.get_all())
             e->update(delta);
 
-        camera.target = {
-            player.pos_x + (float)TILE_WIDTH / 2.0f,
-            player.pos_y + (float)TILE_HEIGHT / 2.0f
-        };
+        if (free_cam) {
+            float cameraSpeed = 200.0f * delta;
+            if (IsKeyDown(KEY_LEFT))
+                camera.target.x -= cameraSpeed;
+            if (IsKeyDown(KEY_RIGHT))
+                camera.target.x += cameraSpeed;
+            if (IsKeyDown(KEY_UP))
+                camera.target.y -= cameraSpeed;
+            if (IsKeyDown(KEY_DOWN))
+                camera.target.y += cameraSpeed;
+        } else {
+            camera.target = {
+                player.pos_x + (float)TILE_WIDTH / 2.0f,
+                player.pos_y + (float)TILE_HEIGHT / 2.0f
+            };
+        }
     } else if (state == eState::Editor) {
 
-        editor_camera.target = { WORLD_WIDTH * TILE_WIDTH / 2.0f, WORLD_HEIGHT * TILE_HEIGHT / 2.0f };
+        if (free_cam) {
+            float cameraSpeed = 200.0f * delta;
+            if (IsKeyDown(KEY_LEFT))
+                editor_camera.target.x -= cameraSpeed;
+            if (IsKeyDown(KEY_RIGHT))
+                editor_camera.target.x += cameraSpeed;
+            if (IsKeyDown(KEY_UP))
+                editor_camera.target.y -= cameraSpeed;
+            if (IsKeyDown(KEY_DOWN))
+                editor_camera.target.y += cameraSpeed;
+        } else {
+            editor_camera.target = { WORLD_WIDTH * TILE_WIDTH / 2.0f, WORLD_HEIGHT * TILE_HEIGHT / 2.0f };
+        }
     }
 
     float wheel = GetMouseWheelMove();
     ImVec2 mousePos = ImGui::GetMousePos();
     bool mouseOverGame = (mousePos.x >= viewport.x && mousePos.x <= viewport.x + viewport.width && mousePos.y >= viewport.y && mousePos.y <= viewport.y + viewport.height);
 
+    Camera2D* activeCam = (state == eState::Editor) ? &editor_camera : &camera;
     if (wheel != 0 && mouseOverGame) {
         const float zoom_increment = 0.125f;
 
-        Camera2D* activeCam = (state == eState::Editor) ? &editor_camera : &camera;
+        // Camera2D* activeCam = (state == eState::Editor) ? &editor_camera : &camera;
         activeCam->zoom += (wheel * zoom_increment);
 
         if (activeCam->zoom < 2.0f)
@@ -132,13 +160,13 @@ void Game::update(float delta)
     }
 
     // Simple collision
-    if (CheckCollisionRecs(player.hitbox, get_entity("chest")->hitbox)) {
+    if (CheckCollisionRecs(player.hitbox, entity_registry.get("chest")->hitbox)) {
         // PlaySound(sounds[SOUND_ATTACK]);
     }
 
     if (IsKeyPressed(KEY_E)) {
         // if (player.x_index == gate.x_index && player.y_index == gate.y_index) {
-        if (CheckCollisionRecs(player.hitbox, get_entity("gate")->hitbox)) {
+        if (CheckCollisionRecs(player.hitbox, entity_registry.get("gate")->hitbox)) {
             if (player.zone == eZone::WORLD)
                 player.zone = eZone::DUNGEON;
 
@@ -148,6 +176,8 @@ void Game::update(float delta)
             PlaySound(sounds[SOUND_POINTS]);
         }
     }
+
+    handle_entity_selection();
 }
 
 void Game::draw()
@@ -158,18 +188,22 @@ void Game::draw()
 
         map.draw(player.zone);
 
-        auto chest = get_entity("chest");
-        auto gate = get_entity("gate");
-        auto skull = get_entity("skull");
-        map.draw_tile(chest->x_index * 16, chest->y_index * 16, 7, 1);
-        map.draw_tile(gate->x_index * TILE_WIDTH, gate->y_index * TILE_HEIGHT, 3, 2);
-
-        if (player.zone == skull->zone) {
-            map.draw_tile(skull->x_index * TILE_WIDTH, skull->y_index * TILE_HEIGHT, 1, 5);
-        }
-
-        for (size_t i = 3; i < entities.size(); ++i) {
-            entities[i]->draw();
+        for (auto& e : entity_registry.get_all()) {
+            // Only draw if visible in current zone
+            if (e->zone == eZone::ALL || e->zone == player.zone) {
+                if (e->hasAnimation) {
+                    // Animated entities use their own draw()
+                    e->draw();
+                } else {
+                    // Static entities use map tiles
+                    if (e->name == "chest")
+                        map.draw_tile(e->x_index * 16, e->y_index * 16, 7, 1);
+                    else if (e->name == "gate")
+                        map.draw_tile(e->x_index * TILE_WIDTH, e->y_index * TILE_HEIGHT, 2, 2);
+                    else if (e->name == "skull")
+                        map.draw_tile(e->x_index * TILE_WIDTH, e->y_index * TILE_HEIGHT, 1, 5);
+                }
+            }
         }
 
         player.draw();
@@ -177,17 +211,17 @@ void Game::draw()
         if (debugMode) {
             player.draw_hitbox(RED);
 
-            /*for (auto& e : entities) {
+            for (auto& e : entity_registry.get_all()) {
                 e->show_hitbox = true;
-            }*/
+                e->draw_hitbox(BLUE);
+            }
 
-            map.draw_grid(WORLD_WIDTH, WORLD_HEIGHT, TILE_WIDTH, TILE_HEIGHT, RED);
+            map.draw_grid(WORLD_WIDTH, WORLD_HEIGHT, TILE_WIDTH, TILE_HEIGHT, 0.5f, RED);
             draw_mouse_highlight();
         }
 
-        for (auto& e : entities) {
-            if (e->show_hitbox)
-                e->draw_hitbox(BLUE);
+        if (selected_entity) {
+            DrawRectangleLinesEx(selected_entity->hitbox, 1, YELLOW);
         }
 
         EndMode2D();
@@ -195,7 +229,8 @@ void Game::draw()
     } else if (state == eState::Editor) {
 
         BeginMode2D(editor_camera);
-        map.draw_grid(WORLD_WIDTH, WORLD_HEIGHT, TILE_WIDTH, TILE_HEIGHT, BLACK);
+        DrawRectangle(0, 0, TILE_WIDTH * WORLD_WIDTH, TILE_HEIGHT * WORLD_HEIGHT, DARKGRAY);
+        map.draw_grid(WORLD_WIDTH, WORLD_HEIGHT, TILE_WIDTH, TILE_HEIGHT, 1.2f, BLACK);
         draw_mouse_highlight();
         EndMode2D();
     }
@@ -207,7 +242,7 @@ void Game::draw()
 
 bool Game::can_move_to(const Rectangle& nextHitbox)
 {
-    for (auto& e : entities) {
+    for (auto& e : entity_registry.get_all()) {
         if ((e->zone == player.zone || e->zone == eZone::ALL)
             && !e->is_passable
             && e->is_alive
@@ -221,48 +256,98 @@ bool Game::can_move_to(const Rectangle& nextHitbox)
     return true;
 }
 
+void Game::handle_entity_selection()
+{
+    const auto& io = ImGui::GetIO();
+
+    if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+        ImVec2 mousePos = ImGui::GetMousePos();
+
+        // Translate to game-view local coordinates
+        float localX = mousePos.x - viewport.x;
+        float localY = mousePos.y - viewport.y;
+
+        // Skip if outside viewport bounds
+        if (localX >= 0 && localY >= 0 && localX <= viewport.width && localY <= viewport.height) {
+            // Convert from ImGui window space to your world space
+            float scaleX = (float)SCREEN_WIDTH / viewport.width;
+            float scaleY = (float)SCREEN_HEIGHT / viewport.height;
+
+            Vector2 mouseWorld = GetScreenToWorld2D(
+                { localX * scaleX, localY * scaleY },
+                (state == eState::Editor) ? editor_camera : camera);
+
+            // Detect clicked entity
+            selected_entity = nullptr;
+            for (auto& e : entity_registry.get_all()) {
+                if (CheckCollisionPointRec(mouseWorld, e->hitbox)) {
+                    selected_entity = e.get();
+                    break;
+                }
+            }
+        }
+    }
+}
+
 void Game::draw_entity_panel()
 {
     ImGui::Begin("Entities");
 
-    for (auto& e : entities) {
+    for (auto& e : entity_registry.get_all()) {
         ImGui::PushID(e->name.c_str()); // Unique ID for each entity
         // --- Set blue background for headers ---
         // ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0.2f, 0.4f, 0.8f, 0.8f)); // darker blue
         // ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(0.3f, 0.5f, 1.0f, 0.9f)); // brighter hover
         // ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImVec4(0.1f, 0.3f, 0.7f, 1.0f)); // pressed blue
 
-        // Create a collapsible tree node for each entity
-        bool open = ImGui::CollapsingHeader(
-            e->name.c_str() //,
-            // ImGuiTreeNodeFlags_DefaultOpen // remove this if you want them collapsed by default
-        );
+        /*bool open = ImGui::CollapsingHeader(
+            e->name.c_str() //, ImGuiTreeNodeFlags_DefaultOpen
+        );*/
+        bool open = false;
+        ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_DefaultOpen;
+        if (selected_entity == e.get())
+            open = ImGui::CollapsingHeader(e->name.c_str(), ImGuiTreeNodeFlags_DefaultOpen);
+        else
+            open = ImGui::CollapsingHeader(e->name.c_str());
+
+        if (ImGui::IsItemToggledOpen())
+            selected_entity = e.get();
 
         // ImGui::PopStyleColor(3);
 
         if (open) {
             ImGui::Indent();
 
-            const char* zoneNames[] = { "WORLD", "DUNGEON", "ALL" };
+            const char* zoneNames[] = { "ALL", "WORLD", "DUNGEON" };
             int zoneIndex = static_cast<int>(e->zone);
             if (ImGui::Combo("Zone", &zoneIndex, zoneNames, IM_ARRAYSIZE(zoneNames))) {
                 e->zone = static_cast<eZone>(zoneIndex);
             }
             // ImGui::Text("Zone: %d", static_cast<int>(e->zone));
-            ImGui::Text("Alive: %s", e->is_alive ? "Yes" : "No");
-            ImGui::Text("Passable: %s", e->is_passable ? "Yes" : "No");
-            ImGui::Text("Health: %d", e->health);
-            ImGui::Text("Damage: %d", e->damage);
-            ImGui::Text("Points: %d", e->points);
+
+            ImGui::Checkbox("Alive", &e->is_alive);
+            ImGui::Checkbox("Passable", &e->is_passable);
+
+            ImGui::InputInt("Health", &e->health);
+            e->health = std::max(0, e->health);
+            ImGui::InputInt("Damage", &e->damage);
+            e->damage = std::max(0, e->damage);
+            ImGui::InputInt("Points", &e->points);
+            e->points = std::max(0, e->points);
+
+            // ImGui::NewLine();
+            ImGui::Separator();
             ImGui::Text("Pos: (%d, %d)", e->x_index, e->y_index);
+            ImGui::Text("Hitbox: x=%.1f y=%.1f w=%.1f h=%.1f",
+                e->hitbox.x, e->hitbox.y, e->hitbox.width, e->hitbox.height);
             ImGui::SliderInt("Pos X", &e->x_index, 0, WORLD_WIDTH);
             ImGui::SliderInt("Pos Y##", &e->y_index, 0, WORLD_HEIGHT);
             e->update_hitbox();
-            ImGui::Text("Hitbox: x=%.1f y=%.1f w=%.1f h=%.1f",
-                e->hitbox.x, e->hitbox.y, e->hitbox.width, e->hitbox.height);
 
+            // ImGui::NewLine();
+            ImGui::Separator();
+            ImGui::Text("Animation Preview:");
             if (e->hasAnimation) {
-                ImGui::Text("Animation Preview:");
                 const float maxPreviewSize = 256.0f; // all previews fit in this square
                 float texW = static_cast<float>(e->baseAnim.texture.width);
                 float texH = static_cast<float>(e->baseAnim.texture.height);
@@ -280,6 +365,13 @@ void Game::draw_entity_panel()
 
                 ImVec2 size(drawW, drawH);
 
+                // Reserve space and get the rectangle area where the image will be drawn
+                ImVec2 p0 = ImGui::GetCursorScreenPos();
+                ImVec2 p1 = ImVec2(p0.x + size.x, p0.y + size.y);
+
+                ImGui::GetWindowDrawList()->AddRectFilled(
+                    p0, p1, /*IM_COL32(255, 0, 255, 255)*/ IM_COL32(0, 0, 0, 255));
+
                 // ImGui expects ImTextureID; with raylib, we cast the texture id
                 ImGui::Image(
                     (ImTextureID)(intptr_t)e->baseAnim.texture.id,
@@ -289,8 +381,6 @@ void Game::draw_entity_panel()
             } else {
                 ImGui::TextDisabled("No animation texture.");
             }
-
-            ImGui::Checkbox("hitbox", &e->show_hitbox);
 
             ImGui::Unindent();
             ImGui::Separator();
@@ -303,18 +393,35 @@ void Game::draw_entity_panel()
 
 void Game::draw_overlay()
 {
-    DrawRectangle(5, 5, 330, 150, Fade(BLACK, 0.5f));
-    DrawRectangleLines(5, 5, 330, 150, RED);
+    DrawRectangle(5, 5, 330, 220, Fade(BLACK, 0.5f));
+    DrawRectangleLines(5, 5, 330, 220, RED);
 
     DrawText(TextFormat("FPS: %6.2f", 1.0f / GetFrameTime()), 15, 15, 20, RED);
-    DrawText(TextFormat("Camera Target: (%06.2f, %06.2f)", camera.target.x, camera.target.y), 15, 35, 14, RAYWHITE);
-    DrawText(TextFormat("Camera Zoom: %06.2f", camera.zoom), 15, 50, 14, RAYWHITE);
+    if (state == eState::Game) {
+        DrawText(TextFormat("Camera Target: %.2f - %.2f", camera.target.x, camera.target.y), 15, 35, 14, RAYWHITE);
+        DrawText(TextFormat("Camera Zoom: %06.2f", camera.zoom), 15, 50, 14, RAYWHITE);
 
-    DrawText(TextFormat("Tile: %d - %d", player.x_index, player.y_index), 15, 75, 14, ORANGE);
-    DrawText(TextFormat("Pos: %4.2f - %4.2f", player.pos_x, player.pos_y), 15, 90, 14, ORANGE);
+        DrawText(TextFormat("Tile: %d - %d", player.x_index, player.y_index), 15, 75, 14, ORANGE);
+        DrawText(TextFormat("Pos: %4.2f - %4.2f", player.pos_x, player.pos_y), 15, 90, 14, ORANGE);
 
-    DrawText(TextFormat("Player Health: %d", player.health), 15, 105, 14, ORANGE);
-    DrawText(TextFormat("Player Points: %d", player.points), 15, 120, 14, ORANGE);
+        DrawText(TextFormat("Player Health: %d", player.health), 15, 105, 14, ORANGE);
+        DrawText(TextFormat("Player Points: %d", player.points), 15, 120, 14, ORANGE);
+
+        if (!debugMode)
+            DrawText("Game Mode", 15, 150, 20, RED);
+        else
+            DrawText("Debug Mode", 15, 150, 20, RED);
+    } else {
+
+        DrawText("Editor Mode", 15, 35, 20, RED);
+    }
+
+    if (free_cam) {
+        if (state == eState::Game)
+            DrawText("Free Camera", 15, 170, 20, RED);
+        else
+            DrawText("Free Camera", 15, 55, 20, RED);
+    }
 }
 
 void Game::draw_ui()

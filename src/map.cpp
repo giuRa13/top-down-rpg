@@ -89,18 +89,18 @@ void Map::draw_tile(int pos_x, int pos_y, int texture_index_x, int texture_index
     DrawTexturePro(textures[TEXTURE_TILEMAP], source, dest, origin, 0.0f, WHITE);
 }
 
-void Map::draw_grid(int width, int height, int tile_w, int tile_h, Color color = { 255, 255, 255, 255 })
+void Map::draw_grid(int width, int height, int tile_w, int tile_h, float line, Color color = { 255, 255, 255, 255 })
 {
     for (int x = 0; x <= width; x++) {
         int pos_x = x * tile_w;
         // DrawLine(pos_x, 0, pos_x, height * tile_h, color);
-        DrawLineEx(Vector2 { (float)pos_x, 0 }, Vector2 { (float)pos_x, (float)(height * tile_h) }, 1.f, color);
+        DrawLineEx(Vector2 { (float)pos_x, 0 }, Vector2 { (float)pos_x, (float)(height * tile_h) }, line, color);
     }
 
     for (int y = 0; y <= height; y++) {
         int pos_y = y * tile_h;
         // DrawLine(0, pos_y, width * tile_w, pos_y, color);
-        DrawLineEx(Vector2 { 0, (float)pos_y }, Vector2 { (float)(width * tile_w), (float)pos_y }, 1.f, color);
+        DrawLineEx(Vector2 { 0, (float)pos_y }, Vector2 { (float)(width * tile_w), (float)pos_y }, line, color);
     }
 }
 
