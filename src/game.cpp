@@ -1,12 +1,12 @@
 #include "game.h"
+#include "editor.h"
 #include "imgui.h"
 #include "raylib.h"
 #include "tile.h"
-#include <cstddef>
-#include <sys/stat.h>
 
 Game::Game()
     : player(3, 3, eZone::WORLD)
+    , editor(map)
 {
     auto chest = entity_registry.spawn<Entity>("chest", 6, 3, eZone::ALL);
     chest->is_passable = false;
@@ -21,7 +21,7 @@ Game::Game()
     auto explosion_f = entity_registry.spawn<Entity>("explosion_f", 9, 2, eZone::ALL);
     explosion_f->hasAnimation = true;
 
-    auto explosion_d = entity_registry.spawn<Entity>("explosion_d", 11, 10, eZone::ALL);
+    auto explosion_d = entity_registry.spawn<Entity>("explosion_d", 11, 10, eZone::ALL, 2.0f);
     explosion_d->hasAnimation = true;
 
     auto trap1 = entity_registry.spawn<Entity>("trap1", 12, 5, eZone::WORLD);
@@ -46,6 +46,7 @@ void Game::game_startup()
 
     map.init();
     player.load();
+    init_editor();
 
     Image explosion_fImage = LoadImage(RESOURCES_PATH "explosion_1f.png");
     Texture2D explosion_fTex = LoadTextureFromImage(explosion_fImage);
@@ -84,6 +85,14 @@ void Game::init_camera()
     editor_camera.zoom = 2.0f;
     editor_camera.target = { WORLD_WIDTH * TILE_WIDTH / 2.0f, WORLD_HEIGHT * TILE_HEIGHT / 2.0f };
     editor_camera.offset = { viewportWidth / 2.0f, viewportHeight / 2.0f };
+}
+
+void Game::init_editor()
+{
+    if (map.textureCount > 0) {
+        editor.selectedTextureIndex = 0;
+        editor.load_tilemap(map.textures[0], 16, 16);
+    }
 }
 
 void Game::update(float delta)
@@ -186,7 +195,8 @@ void Game::draw()
 
         BeginMode2D(camera);
 
-        map.draw(player.zone);
+        map.draw_grid(WORLD_WIDTH, WORLD_HEIGHT, TILE_WIDTH, TILE_HEIGHT, 1.0f, BLACK);
+        map.draw();
 
         for (auto& e : entity_registry.get_all()) {
             // Only draw if visible in current zone
@@ -197,11 +207,11 @@ void Game::draw()
                 } else {
                     // Static entities use map tiles
                     if (e->name == "chest")
-                        map.draw_tile(e->x_index * 16, e->y_index * 16, 7, 1);
+                        map.draw_tile(e->x_index * 16, e->y_index * 16, 7, 1, "dungeon_test");
                     else if (e->name == "gate")
-                        map.draw_tile(e->x_index * TILE_WIDTH, e->y_index * TILE_HEIGHT, 2, 2);
+                        map.draw_tile(e->x_index * TILE_WIDTH, e->y_index * TILE_HEIGHT, 2, 2, "dungeon_test");
                     else if (e->name == "skull")
-                        map.draw_tile(e->x_index * TILE_WIDTH, e->y_index * TILE_HEIGHT, 1, 5);
+                        map.draw_tile(e->x_index * TILE_WIDTH, e->y_index * TILE_HEIGHT, 1, 5, "dungeon_test");
                 }
             }
         }
@@ -229,13 +239,11 @@ void Game::draw()
     } else if (state == eState::Editor) {
 
         BeginMode2D(editor_camera);
-        DrawRectangle(0, 0, TILE_WIDTH * WORLD_WIDTH, TILE_HEIGHT * WORLD_HEIGHT, DARKGRAY);
-        map.draw_grid(WORLD_WIDTH, WORLD_HEIGHT, TILE_WIDTH, TILE_HEIGHT, 1.2f, BLACK);
-        draw_mouse_highlight();
+        EditorViewport view { viewport.x, viewport.y, viewport.width, viewport.height };
+        map.draw_editor_map(view, editor, editor_camera);
+        // draw_mouse_highlight();
         EndMode2D();
     }
-
-    EndMode2D();
 
     draw_overlay();
 }
@@ -291,7 +299,7 @@ void Game::handle_entity_selection()
 
 void Game::draw_entity_panel()
 {
-    ImGui::Begin("Entities");
+    // ImGui::Begin("Entities");
 
     for (auto& e : entity_registry.get_all()) {
         ImGui::PushID(e->name.c_str()); // Unique ID for each entity
@@ -388,52 +396,57 @@ void Game::draw_entity_panel()
         ImGui::PopID();
     }
 
-    ImGui::End();
-}
-
-void Game::draw_overlay()
-{
-    DrawRectangle(5, 5, 330, 220, Fade(BLACK, 0.5f));
-    DrawRectangleLines(5, 5, 330, 220, RED);
-
-    DrawText(TextFormat("FPS: %6.2f", 1.0f / GetFrameTime()), 15, 15, 20, RED);
-    if (state == eState::Game) {
-        DrawText(TextFormat("Camera Target: %.2f - %.2f", camera.target.x, camera.target.y), 15, 35, 14, RAYWHITE);
-        DrawText(TextFormat("Camera Zoom: %06.2f", camera.zoom), 15, 50, 14, RAYWHITE);
-
-        DrawText(TextFormat("Tile: %d - %d", player.x_index, player.y_index), 15, 75, 14, ORANGE);
-        DrawText(TextFormat("Pos: %4.2f - %4.2f", player.pos_x, player.pos_y), 15, 90, 14, ORANGE);
-
-        DrawText(TextFormat("Player Health: %d", player.health), 15, 105, 14, ORANGE);
-        DrawText(TextFormat("Player Points: %d", player.points), 15, 120, 14, ORANGE);
-
-        if (!debugMode)
-            DrawText("Game Mode", 15, 150, 20, RED);
-        else
-            DrawText("Debug Mode", 15, 150, 20, RED);
-    } else {
-
-        DrawText("Editor Mode", 15, 35, 20, RED);
-    }
-
-    if (free_cam) {
-        if (state == eState::Game)
-            DrawText("Free Camera", 15, 170, 20, RED);
-        else
-            DrawText("Free Camera", 15, 55, 20, RED);
-    }
+    // ImGui::End();
 }
 
 void Game::draw_ui()
 {
     ImGui::DockSpaceOverViewport(0, ImGui::GetMainViewport(), ImGuiDockNodeFlags_PassthruCentralNode);
 
+    if (ImGui::BeginMainMenuBar()) {
+
+        editor.draw_editor_bar();
+
+        if (ImGui::BeginMenu("Mode")) {
+            if (ImGui::MenuItem("Game", nullptr, state == eState::Game))
+                state = eState::Game;
+
+            if (ImGui::MenuItem("Debug", nullptr, debugMode))
+                debugMode = !debugMode;
+
+            if (ImGui::MenuItem("Editor", nullptr, state == eState::Editor))
+                state = eState::Editor;
+
+            ImGui::EndMenu();
+        }
+
+        if (ImGui::BeginMenu("Camera")) {
+            if (ImGui::MenuItem("Game", nullptr, !free_cam))
+                if (free_cam)
+                    free_cam = false;
+
+            if (ImGui::MenuItem("Free Camera", nullptr, free_cam))
+                free_cam = !free_cam;
+
+            ImGui::EndMenu();
+        }
+
+        ImGui::EndMainMenuBar();
+    }
+
     // ---- Debug Panel ----
     ImGui::Begin("Debug Panel");
     ImGui::Text("Camera: (%.2f, %.2f)", camera.target.x, camera.target.y);
     ImGui::TextUnformatted(ICON_FA_BOMB);
     ImGui::NewLine();
-    map.draw_tilemap();
+    map.draw_tilemap_previews(editor);
+    ImGui::End();
+
+    ImGui::Begin("panel");
+    if (state == eState::Game)
+        draw_entity_panel();
+    else if (state == eState::Editor)
+        editor.draw_tilemap_panel();
     ImGui::End();
 
     // ---- Game View ----
@@ -481,6 +494,39 @@ void Game::draw_ui()
     ImGui::End();
 }
 
+void Game::draw_overlay()
+{
+    DrawRectangle(5, 5, 330, 220, Fade(BLACK, 0.5f));
+    DrawRectangleLines(5, 5, 330, 220, RED);
+
+    DrawText(TextFormat("FPS: %6.2f", 1.0f / GetFrameTime()), 15, 15, 20, RED);
+    if (state == eState::Game) {
+        DrawText(TextFormat("Camera Target: %.2f - %.2f", camera.target.x, camera.target.y), 15, 35, 14, RAYWHITE);
+        DrawText(TextFormat("Camera Zoom: %06.2f", camera.zoom), 15, 50, 14, RAYWHITE);
+
+        DrawText(TextFormat("Tile: %d - %d", player.x_index, player.y_index), 15, 75, 14, ORANGE);
+        DrawText(TextFormat("Pos: %4.2f - %4.2f", player.pos_x, player.pos_y), 15, 90, 14, ORANGE);
+
+        DrawText(TextFormat("Player Health: %d", player.health), 15, 105, 14, ORANGE);
+        DrawText(TextFormat("Player Points: %d", player.points), 15, 120, 14, ORANGE);
+
+        if (!debugMode)
+            DrawText("Game Mode", 15, 150, 20, RED);
+        else
+            DrawText("Debug Mode", 15, 150, 20, RED);
+    } else {
+
+        DrawText("Editor Mode", 15, 35, 20, RED);
+    }
+
+    if (free_cam) {
+        if (state == eState::Game)
+            DrawText("Free Camera", 15, 170, 20, RED);
+        else
+            DrawText("Free Camera", 15, 55, 20, RED);
+    }
+}
+
 void Game::draw_mouse_highlight()
 {
     /*Vector2 mouseScreen = GetMousePosition();
@@ -508,5 +554,6 @@ void Game::draw_mouse_highlight()
 
     int tileX = (int)(mouseWorld.x / TILE_WIDTH);
     int tileY = (int)(mouseWorld.y / TILE_HEIGHT);
-    DrawRectangle(tileX * TILE_WIDTH, tileY * TILE_HEIGHT, TILE_WIDTH, TILE_HEIGHT, Fade(GREEN, 0.4f));
+
+    DrawRectangle(tileX * TILE_WIDTH, tileY * TILE_HEIGHT, TILE_WIDTH, TILE_HEIGHT, Fade(GREEN, 0.2f));
 }

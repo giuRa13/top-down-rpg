@@ -15,6 +15,15 @@ add_subdirectory("thirdparty/raylib")
 add_subdirectory("thirdparty/imgui")
 add_subdirectory("thirdparty/rlImGui")
 
+file(GLOB_RECURSE IMGUIFILEDIALOG_SOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/ImGuiFileDialog/ImGuiFileDialog.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/ImGuiFileDialog/ImGuiFileDialog.h"
+)
+target_sources(${PROJECT_NAME} PRIVATE ${IMGUIFILEDIALOG_SOURCES})
+target_include_directories(${PROJECT_NAME} PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/ImGuiFileDialog"
+)
+
 target_link_libraries(${PROJECT_NAME} PUBLIC raylib imgui rlImGui)
 
 if (WIN32)

@@ -1,16 +1,11 @@
 #pragma once
+#include "editor.h"
 #include "entity.h"
 #include "entity_registry.h"
 #include "map.h"
 #include "player.h"
 #include "raylib.h"
-#include "tile.h"
 #include <imgui.h>
-#include <memory>
-#include <rlImgui.h>
-
-constexpr int SCREEN_WIDTH = 1280;
-constexpr int SCREEN_HEIGHT = 720;
 
 #define MAX_SOUNDS 2
 
@@ -38,6 +33,7 @@ inline GameViewport viewport = {};
 class Game {
 public:
     Map map;
+    Editor editor;
     Player player;
     Entity* selected_entity = nullptr;
     EntityRegistry entity_registry;
@@ -57,6 +53,7 @@ public:
 
     void game_startup();
     void init_camera();
+    void init_editor();
     void update(float delta);
     void draw();
     bool can_move_to(const Rectangle& nextHitbox);

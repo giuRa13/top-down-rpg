@@ -1,6 +1,9 @@
 #pragma once
 #include <raylib.h>
 
+constexpr int SCREEN_WIDTH = 1280;
+constexpr int SCREEN_HEIGHT = 720;
+
 constexpr int WORLD_WIDTH = 20;
 constexpr int WORLD_HEIGHT = 20;
 
@@ -11,6 +14,8 @@ typedef enum {
     TEXTURE_TILEMAP = 0
     // add more textures here if needed
 } eTexture_asset;
+
+#define MAX_TEXTURES 10
 
 enum class eTileType {
     FLOOR_0 = 0,
@@ -29,8 +34,15 @@ enum class eZone {
     DUNGEON
 };
 
-struct Tile {
+/*struct Tile {
     int x;
     int y;
     eTileType type;
+};*/
+
+struct Tile {
+    int x;
+    int y;
+    int type = -1;
+    int textureIndex;
 };

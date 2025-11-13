@@ -53,6 +53,7 @@ void set_theme_3()
     colors[ImGuiCol_TextSelectedBg] = ImVec4(0.92f, 0.18f, 0.29f, 0.43f);
     colors[ImGuiCol_PopupBg] = ImVec4(0.20f, 0.22f, 0.27f, 0.9f);
 }
+
 int main()
 {
     Game game;
@@ -79,7 +80,6 @@ int main()
 
         rlImGuiBegin();
         game.draw_ui();
-        game.draw_entity_panel();
         rlImGuiEnd();
 
         EndDrawing();
