@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
-
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 project (rpg)
 
 file(GLOB_RECURSE HEADER_FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/*.h)
@@ -28,4 +29,9 @@ target_link_libraries(${PROJECT_NAME} PUBLIC raylib imgui rlImGui)
 
 if (WIN32)
     target_link_libraries(${PROJECT_NAME} PRIVATE winmm)
+endif()
+
+# Required for std::experimental::filesystem on GCC
+if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    target_link_libraries(${PROJECT_NAME} PRIVATE stdc++fs)
 endif()

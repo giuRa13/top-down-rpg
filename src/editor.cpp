@@ -3,6 +3,7 @@
 #include "imgui.h"
 #include "map.h"
 #include <ImGuiFileDialog.h>
+#include <experimental/filesystem>
 
 void Editor::load_tilemap(Texture2D& tex, int tileW, int tileH)
 {
@@ -14,7 +15,7 @@ void Editor::load_tilemap(Texture2D& tex, int tileW, int tileH)
 
 void Editor::draw_tilemap_panel()
 {
-    if (map.textureCount == 0) {
+    if (map.textures.size() == 0) {
         ImGui::Text("No tilemaps loaded");
         return;
     }
@@ -54,6 +55,46 @@ void Editor::draw_tilemap_panel()
             cancel_tile_mode = false;
     }
     ImGui::PopStyleColor();
+
+    // ---- Add texture at runtime(and reload textures folder)  ----
+    if (ImGui::Button(ICON_FA_PLUS " Add Tilemap")) {
+        ImGuiFileDialog::Instance()->OpenDialog("AddTextureDialog", "Select Texture",
+            ".png,.jpg,.jpeg,.bmp,.tga,.dds");
+    }
+
+    if (ImGuiFileDialog::Instance()->Display("AddTextureDialog")) {
+        if (ImGuiFileDialog::Instance()->IsOk()) {
+            std::string filePath = ImGuiFileDialog::Instance()->GetFilePathName();
+            std::string fileName = std::experimental::filesystem::path(filePath).filename().string();
+            std::string destPath = std::string(RESOURCES_PATH) + "tilemaps/" + fileName;
+
+            // Copy file to textures folder if not already there
+            if (!std::experimental::filesystem::exists(destPath)) {
+                try {
+                    std::experimental::filesystem::copy_file(filePath, destPath);
+                    TraceLog(LOG_INFO, "Copied texture to tilemaps folder: %s", destPath.c_str());
+                } catch (std::experimental::filesystem::filesystem_error& e) {
+                    TraceLog(LOG_ERROR, "Failed to copy texture: %s", e.what());
+                }
+            } else {
+                TraceLog(LOG_INFO, "Texture already exists in tilemaps folder: %s", destPath.c_str());
+            }
+
+            // Avoid duplicates
+            bool alreadyLoaded = std::find(map.textureNames.begin(), map.textureNames.end(), filePath) != map.textureNames.end();
+            if (!alreadyLoaded) {
+                int idx = map.add_texture(destPath); // use the new add_texture()
+                if (idx >= 0) {
+                    TraceLog(LOG_INFO, "Added new texture: %s", filePath.c_str());
+                } else {
+                    TraceLog(LOG_WARNING, "Failed to add texture: %s", filePath.c_str());
+                }
+            } else {
+                TraceLog(LOG_INFO, "Texture already loaded: %s", filePath.c_str());
+            }
+        }
+        ImGuiFileDialog::Instance()->Close();
+    }
 
     // --- Draw current tilemap grid ---
     Texture2D& tex = map.textures[selectedTextureIndex];
@@ -166,6 +207,25 @@ void Editor::draw_editor_bar()
             ImGuiFileDialog::Instance()->Close();
             loadDialogOpen = false;
         }
+    }
+
+    // --- failed to load map (missing textures) ---
+    if (map.showMissingTexturesModal)
+        ImGui::OpenPopup("Missing Textures");
+
+    if (ImGui::BeginPopupModal("Missing Textures")) {
+        ImGui::Text("Some required textures for this map are missing:");
+        ImGui::Separator();
+
+        for (const auto& tex : map.missingTextures)
+            ImGui::TextColored(ImVec4(1.0f, 0.3f, 0.3f, 1.0f), "%s", tex.c_str());
+
+        ImGui::Dummy(ImVec2(0, 10));
+        if (ImGui::Button("Ok", ImVec2(120, 0))) {
+            map.showMissingTexturesModal = false;
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
     }
 }
 

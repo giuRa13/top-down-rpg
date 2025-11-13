@@ -31,9 +31,12 @@ public:
     void draw_editor_map(const EditorViewport& viewport, Editor& editor, Camera2D& cam);
 
     Tile editor_map[WORLD_WIDTH][WORLD_HEIGHT];
-    Texture2D textures[MAX_TEXTURES];
+    // Texture2D textures[MAX_TEXTURES];
+    // int textureCount = 0;
+    std::vector<Texture2D> textures;
     std::vector<std::string> textureNames;
-    int textureCount = 0;
+    std::vector<std::string> missingTextures;
+    bool showMissingTexturesModal = false;
 
     int add_texture(const std::string& path);
     void load_tilemaps(const std::string& folder_path);

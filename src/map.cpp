@@ -2,11 +2,16 @@
 #include "editor.h"
 #include "raylib.h"
 #include "tile.h"
+#include <algorithm>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <imgui.h>
+#include <memory>
 #include <random>
+#include <string>
+#include <unordered_map>
+#include <unordered_set>
 
 Map::Map()
 {
@@ -14,10 +19,6 @@ Map::Map()
 
 void Map::init()
 {
-    /*Image image = LoadImage(RESOURCES_PATH "dungeon_test.png");
-    textures[TEXTURE_TILEMAP] = LoadTextureFromImage(image);
-    UnloadImage(image);*/
-
     load_tilemaps(RESOURCES_PATH "tilemaps/");
 
     for (int i = 0; i < WORLD_WIDTH; i++) {
@@ -40,6 +41,35 @@ void Map::load_tilemaps(const std::string& folder_path)
             }
         }
     }
+}
+
+int Map::add_texture(const std::string& path)
+{
+    // Check if already loaded
+    auto it = std::find(textureNames.begin(), textureNames.end(), path);
+    if (it != textureNames.end()) {
+        return std::distance(textureNames.begin(), it);
+    }
+
+    // Load the texture
+    Image img = LoadImage(path.c_str());
+    if (img.data == nullptr) {
+        TraceLog(LOG_ERROR, "Failed to load texture: %s", path.c_str());
+        return -1;
+    }
+
+    Texture2D tex = LoadTextureFromImage(img);
+    UnloadImage(img);
+
+    if (textures.size() >= MAX_TEXTURES) {
+        TraceLog(LOG_WARNING, "No empty slot for new texture");
+        UnloadTexture(tex);
+        return -1;
+    }
+
+    textures.push_back(tex);
+    textureNames.push_back(path);
+    return textures.size() - 1; // return the index
 }
 
 Texture2D* Map::get_texture_by_name(const std::string& name)
@@ -65,7 +95,7 @@ void Map::draw()
     for (int x = 0; x < WORLD_WIDTH; ++x) {
         for (int y = 0; y < WORLD_HEIGHT; ++y) {
             Tile& t = editor_map[x][y];
-            if (t.type < 0 || t.textureIndex < 0 || t.textureIndex >= textureCount)
+            if (t.type < 0 || t.textureIndex < 0 || t.textureIndex >= textures.size())
                 continue;
 
             Texture2D& tex = textures[t.textureIndex]; // Use correct texture
@@ -142,7 +172,7 @@ void Map::draw_editor_map(const EditorViewport& viewport, Editor& editor, Camera
     for (int x = 0; x < WORLD_WIDTH; ++x) {
         for (int y = 0; y < WORLD_HEIGHT; ++y) {
             Tile& t = editor_map[x][y];
-            if (t.type < 0 || t.textureIndex < 0 || t.textureIndex >= textureCount)
+            if (t.type < 0 || t.textureIndex < 0 || t.textureIndex >= textures.size())
                 continue;
 
             // Use the correct texture for this tile
@@ -211,29 +241,19 @@ void Map::draw_editor_map(const EditorViewport& viewport, Editor& editor, Camera
     //}
 }
 
-int Map::add_texture(const std::string& path)
-{
-    Image img = LoadImage(path.c_str());
-    if (img.data == nullptr) {
-        TraceLog(LOG_ERROR, "Failed to load texture: %s", path.c_str());
-        return -1;
-    }
+/*
+map.bin:
+    [int] textureCount
+    For each texture:
+        [int] nameLength
+        [char * nameLength] textureName (relative filename like "dungeon_floor.png")
 
-    Texture2D tex = LoadTextureFromImage(img);
-    UnloadImage(img);
+    For each tile:
+        [int] type
+        [int] textureIndex
+*/
 
-    if (textureCount >= MAX_TEXTURES) {
-        TraceLog(LOG_WARNING, "No empty slot for new texture");
-        UnloadTexture(tex);
-        return -1;
-    }
-
-    textures[textureCount] = tex;
-    textureNames.push_back(path);
-    return textureCount++;
-}
-
-bool Map::save_to_file(const std::string& path)
+/*bool Map::save_to_file(const std::string& path)
 {
     std::ofstream file(path, std::ios::binary);
     if (!file.is_open()) {
@@ -250,9 +270,54 @@ bool Map::save_to_file(const std::string& path)
     }
     file.close();
     return true;
+}*/
+bool Map::save_to_file(const std::string& path)
+{
+    std::ofstream file(path, std::ios::binary);
+    if (!file.is_open())
+        return false;
+
+    // Write only textures actually used in the map
+    std::unordered_set<int> usedTextures;
+    for (int y = 0; y < WORLD_HEIGHT; ++y)
+        for (int x = 0; x < WORLD_WIDTH; ++x)
+            if (editor_map[x][y].textureIndex >= 0)
+                usedTextures.insert(editor_map[x][y].textureIndex);
+
+    std::vector<std::string> texList;
+    std::unordered_map<int, int> indexMap;
+    int idx = 0;
+    for (int texIdx : usedTextures) {
+        texList.push_back(textureNames[texIdx]);
+        indexMap[texIdx] = idx++;
+    }
+
+    // Write texture list
+    int tex_count = texList.size();
+    file.write(reinterpret_cast<char*>(&tex_count), sizeof(int));
+    for (const std::string& name : texList) {
+        int len = (int)name.size();
+        file.write(reinterpret_cast<char*>(&len), sizeof(int));
+        file.write(name.c_str(), len);
+    }
+
+    // Write map tiles with remapped texture indexes
+    for (int y = 0; y < WORLD_HEIGHT; ++y) {
+        for (int x = 0; x < WORLD_WIDTH; ++x) {
+            Tile& t = editor_map[x][y];
+            file.write(reinterpret_cast<char*>(&t.type), sizeof(int));
+
+            int mappedIndex = (t.textureIndex >= 0) ? indexMap[t.textureIndex] : -1;
+            file.write(reinterpret_cast<char*>(&mappedIndex), sizeof(int));
+        }
+    }
+
+    file.close();
+    TraceLog(LOG_INFO, "Map saved successfully: %s", path.c_str());
+    return true;
 }
 
-bool Map::load_from_file(const std::string& path)
+/*bool Map::load_from_file(const std::string& path)
 {
     std::ifstream file(path, std::ios::binary);
     if (!file.is_open()) {
@@ -274,11 +339,85 @@ bool Map::load_from_file(const std::string& path)
 
     file.close();
     return true;
+}*/
+bool Map::load_from_file(const std::string& path)
+{
+    std::ifstream file(path, std::ios::binary);
+    if (!file.is_open())
+        return false;
+
+    // Read required texture list
+    int tex_count = 0;
+    file.read(reinterpret_cast<char*>(&tex_count), sizeof(int));
+    std::vector<std::string> required_textures(tex_count);
+
+    for (int i = 0; i < tex_count; ++i) {
+        int len = 0;
+        file.read(reinterpret_cast<char*>(&len), sizeof(int));
+        std::string tex_name(len, '\0');
+        file.read(&tex_name[0], len);
+        required_textures[i] = tex_name;
+    }
+
+    // Track old textureNames to remap tile indexes
+    std::vector<std::string> oldTextures = textureNames;
+
+    // Merge textures
+    for (const std::string& texName : required_textures) {
+        add_texture(texName); // add if not present
+    }
+
+    // Build a map from old index -> new index
+    std::unordered_map<int, int> indexMap;
+    for (int i = 0; i < oldTextures.size(); ++i) {
+        auto it = std::find(textureNames.begin(), textureNames.end(), oldTextures[i]);
+        if (it != textureNames.end()) {
+            indexMap[i] = std::distance(textureNames.begin(), it);
+        }
+    }
+
+    // Verify missing textures
+    missingTextures.clear();
+    for (const std::string& texName : required_textures) {
+        if (!std::filesystem::exists(texName)) {
+            missingTextures.push_back(texName);
+        }
+    }
+
+    if (!missingTextures.empty()) {
+        showMissingTexturesModal = true;
+        file.close();
+        return false;
+    }
+
+    // Load map tile data
+    for (int y = 0; y < WORLD_HEIGHT; ++y) {
+        for (int x = 0; x < WORLD_WIDTH; ++x) {
+            Tile& t = editor_map[x][y];
+            if (!file.read(reinterpret_cast<char*>(&t.type), sizeof(int)))
+                break;
+            int savedTextureIndex;
+            if (!file.read(reinterpret_cast<char*>(&savedTextureIndex), sizeof(int)))
+                break;
+
+            // Remap to current texture index
+            if (savedTextureIndex >= 0 && savedTextureIndex < required_textures.size()) {
+                t.textureIndex = std::distance(textureNames.begin(),
+                    std::find(textureNames.begin(), textureNames.end(), required_textures[savedTextureIndex]));
+            } else {
+                t.textureIndex = -1; // invalid
+            }
+        }
+    }
+
+    file.close();
+    TraceLog(LOG_INFO, "Map loaded successfully: %s", path.c_str());
+    return true;
 }
 
 void Map::draw_tilemap_previews(Editor& editor)
 {
-    if (textureCount == 0) {
+    if (textures.size() == 0) {
         ImGui::Text("No tilemaps loaded.");
         return;
     }
@@ -294,7 +433,7 @@ void Map::draw_tilemap_previews(Editor& editor)
     float availWidth = ImGui::GetContentRegionAvail().x;
     float xOffset = 0.0f; // track horizontal cursor
                           //
-    for (int i = 0; i < textureCount; ++i) {
+    for (int i = 0; i < textures.size(); ++i) {
         Texture2D& tex = textures[i];
         if (!tex.id)
             continue;
@@ -373,8 +512,6 @@ void Map::draw_tilemap_previews(Editor& editor)
         ImGui::Dummy(ImVec2(cardW, 10)); // Advance cursor
         ImGui::EndGroup();
 
-        // if (i < textureCount - 1)
-        // ImGui::SameLine(0, spacing);
         xOffset += cardW + spacing;
         if (xOffset < availWidth)
             ImGui::SameLine(0, spacing);

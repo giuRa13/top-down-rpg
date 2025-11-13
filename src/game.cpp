@@ -89,7 +89,7 @@ void Game::init_camera()
 
 void Game::init_editor()
 {
-    if (map.textureCount > 0) {
+    if (map.textures.size() > 0) {
         editor.selectedTextureIndex = 0;
         editor.load_tilemap(map.textures[0], 16, 16);
     }
